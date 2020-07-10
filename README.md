@@ -2,6 +2,12 @@
 
 Estimate the Propensity Score in Python following Imbens and Rubin (2015)
 
+## Installation
+Use `pip` to install:
+```
+pip install propscore
+```
+
 ## Description
 This code is a work in progress, but allows one to estimate the propensity score (the probability of being in the treated group) following the general methodology laid out in [Imbens and Rubin (2015)](https://doi.org/10.1017/CBO9781139025751.014).
 
@@ -15,6 +21,18 @@ Add additional linear terms that will be tested. These will be selected one-by-o
 
 ### Step 3
 Quadratic and interaction terms are automatically generated from the `init_vars` and the `test_vars` and these are compared in the same way as the linear terms except the log odds must increase by a separate amount (default is 2.71).
+
+## Example Use
+The following is sample code to illustrate the use (note: this example will not run as I have not bothered to find a suitable dataset for testing, this is still a work in progress.
+```
+from propscore import PropensityScore
+
+# this assumes you have a pandas dataframe called df, an outcome called "outcome" and covariates var1-var5.
+# We wish to always include var2 and var3, and want to test the relevance 
+# of the other variables and higher order terms.
+
+output = PropensityScore('outcome', ['var1','var4','var5'], df, init_vars=['var2','var3'])
+```
 
 ## Output
 
