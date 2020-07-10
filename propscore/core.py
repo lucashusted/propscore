@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from statsmodels.api import Logit
+from pandas import Series
 import warnings
 
 class PropensityScore:
     """
-    
+
     Parameters
     ----------
     outcome : str
@@ -44,7 +45,7 @@ class PropensityScore:
         but index will align properly.
     self.test_vars_ord2: list
         The full list of tested second order variables for reference.
-    
+
     """
     def __init__(self, outcome, test_vars, df, init_vars=None, add_cons=True, disp=True,
                  cutoff_ord1 = 1, cutoff_ord2 = 2.71):
@@ -120,7 +121,9 @@ class PropensityScore:
             self.model = Logit(self.data[self.outcome],
                         self.data[squared],missing='drop').fit(disp=False)
 
-        self.propscore = self.model.fittedvalues
+        self.logodds = self.model.fittedvalues.rename('logodds')
+        self.propscore = Series(self.model.predict(),index=self.logodds.index,name='propscore')
+
         if disp:
             print(self.model.summary())
             print('The following vars were infeasible: {}'.format(', '.join(self.dropped_vars)))

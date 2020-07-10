@@ -27,11 +27,15 @@ The following is sample code to illustrate the use (note: this example will not 
 ```
 from propscore import PropensityScore
 
-# this assumes you have a pandas dataframe called df, an outcome called "outcome" and covariates var1-var5.
-# We wish to always include var2 and var3, and want to test the relevance 
+# Imagine you have pandas DataFrame, df, with columns "outcome" an "var1"-"var5".
+# We wish to always include var2 and var3, and want to test the relevance
 # of the other variables and higher order terms.
 
 output = PropensityScore('outcome', ['var1','var4','var5'], df, init_vars=['var2','var3'])
+
+# The propensity score values are given in the pandas Series:
+
+output.propscore
 ```
 
 ## Output
@@ -40,13 +44,14 @@ output = PropensityScore('outcome', ['var1','var4','var5'], df, init_vars=['var2
 
 - `self.dropped_vars`: list. The variables that did not make the cut for singularity reasons.
 
+- `self.logodds`: Series. This is the log-odds ratio or the linearized propensity score. Equivalent to `self.model.fittedvalues`. This may not match dimension of data due to dropped missing values, but index will align properly on nonmissing values.
+
 - `self.model`: The fitted model from `Statsmodels`. This is the raw model on the final set of variables from Statsmodels
 
-- `self.propscore`: Series. This is the propensity score as calculated by self.model.fittedvalues. This may not match dimension of data due to dropped missing values, but index will align properly.
+- `self.propscore`: Series. This is the propensity score as calculated by `self.model.predict()`. This may not match dimension of data due to dropped missing values, but index will align properly on nonmissing values.
 
 - `self.test_vars_ord2`: list. The full list of tested second order variables for reference.
 
 ## References
 
 Imbens, G., & Rubin, D. (2015). Estimating the Propensity Score. In Causal Inference for Statistics, Social, and Biomedical Sciences: An Introduction (pp. 281-308). Cambridge: Cambridge University Press. doi:10.1017/CBO9781139025751.014
-
