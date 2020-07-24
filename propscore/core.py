@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from statsmodels.api import Logit
+from scipy.stats import ttest_ind as ttest
 from pandas import Series
 import warnings
 
 class PropensityScore:
     """
-
     Parameters
     ----------
     outcome : str
@@ -19,12 +19,18 @@ class PropensityScore:
         Variables to always have included in the propensity score. The default is None.
     add_cons : Boolean, optional
         Select this to add a constant to model. The default is True.
-    disp : TYPE, optional
+    disp : Boolean, optional
         Display the final model including dropped variables. The default is True.
-    cutoff_ord1 : TYPE, optional
+    cutoff_ord1 : Numeric, optional
         The log gain cutoff for first order covariates. The default is 1.
-    cutoff_ord2 : TYPE, optional
+    cutoff_ord2 : Numeric, optional
         The log gain cutoff for second order covariates. The default is 2.71.
+    t_strata : Numeric, optional
+        The cutoff for the t-statistic for the calculated strata. The default is 1.
+    n_min_strata : Int or 'auto'
+        The minimum number of units in each strata. The default is 'auto' in which case
+        the number is the number of covariates tested in the propensity score (just linear ones)
+        plus 3. If not auto, the input needs to be an integer.
 
     Raises
     ------
@@ -45,10 +51,9 @@ class PropensityScore:
         but index will align properly.
     self.test_vars_ord2: list
         The full list of tested second order variables for reference.
-
     """
     def __init__(self, outcome, test_vars, df, init_vars=None, add_cons=True, disp=True,
-                 cutoff_ord1 = 1, cutoff_ord2 = 2.71):
+                 cutoff_ord1 = 1, cutoff_ord2 = 2.71, t_strata = 1, n_min_strata='auto'):
 
         # double checking some inputs
         if type(outcome)!=str:
@@ -67,6 +72,12 @@ class PropensityScore:
             covs = init_vars + test_vars
         else:
             covs = test_vars
+
+        if n_min_strata == 'auto':
+            n_min_strata = len(covs)+3
+
+        if 'propscore' in covs + [outcome] or 'logodds' in covs + [outcome]:
+            raise valueError('You cannot have variables labeled "propscore" or "logodds"')
 
 
         data = df[[outcome]+covs].copy()
@@ -123,11 +134,13 @@ class PropensityScore:
 
         self.logodds = self.model.fittedvalues.rename('logodds')
         self.propscore = Series(self.model.predict(),index=self.logodds.index,name='propscore')
+        self.strata = self.stratify(self.data[self.outcome],self.logodds,
+                                    t_max=t_strata, n_min = n_min_strata)
 
         if disp:
             print(self.model.summary())
             print('The following vars were infeasible: {}'.format(', '.join(self.dropped_vars)))
-
+            print('Stratification produced {} strata'.format(len(self.strata.dropna().unique())))
 
     def best_in_group(self, newvars, basevars=None):
         ''' Get the best variable for score among a set of new variables '''
@@ -179,3 +192,74 @@ class PropensityScore:
                 break
 
         return final
+
+    # we will define a static method so that we can call this on any generic series
+    @staticmethod
+    def stratify(outcome, logodds, n_min, t_max = 1):
+        """
+    Calculate strata from a given outcome variable and log-odds. Specify the cutoff
+    for the t-statistic in t_max, or the minimum number of observations for
+    each strata in n_min.
+    Parameters
+    ----------
+    outcome : Series
+        Binary variable denoting treatment outcome
+    logodds : Series
+        The calculated log-odds for that (transformation of propensity score).
+    t_max : Float
+        The maximum t-statistic value acceptable in a strata before splitting.
+        Default is 1.
+    n_min : Int
+        The minimum number of observations per strata.
+
+    Returns
+    -------
+    strata : Series
+        The calculated strata. Missing propensity scores and values outside of
+        min of treated group or max of control group are coded as NaN.
+        """
+
+        if type(outcome)!=Series or type(logodds)!=Series:
+            raise ValueError('Expecting pandas series as inputs')
+
+        # helper function to facilitate indexing
+        def above_med(x):
+            return (x>=x.median()).astype(int)
+
+        outcome = outcome.rename('outcome').to_frame()
+        df = outcome.join(logodds)
+        minmax = df.groupby('outcome')['logodds'].agg(['max','min'])
+        df = df.loc[df.logodds.ge(minmax.loc[1,'min']) &
+                            df.logodds.le(minmax.loc[0,'max']) &
+                            df.logodds.notnull()]
+
+        # initialize the strata, potential blocks, and the change while loop
+        df.loc[:,'strata'] = 0
+        df.loc[:,'block'] = 0
+        change = True
+
+        while change == True:
+            # get the medians of the strata
+            df.loc[:,'medgrp'] = df.groupby('strata')['logodds'].apply(above_med)
+            for ii in df.strata.unique():
+                # simplify the notation
+                sub = df.loc[df.strata.eq(ii),:].copy()
+
+                # calculate t-stat and a grouper with number of groups
+                t_test = ttest(sub.loc[sub.outcome.eq(1),'logodds'],
+                               sub.loc[sub.outcome.eq(0),'logodds'],
+                               nan_policy='omit').statistic
+                n = sub.groupby(['medgrp','outcome'])['logodds'].count()
+
+                # make new blocks
+                if t_test>t_max and min(n)>2 and min(n.groupby('medgrp').sum())>n_min:
+                    df.loc[df.strata.eq(ii),'block'] = df.loc[df.strata.eq(ii),'medgrp']
+
+            if df.block.sum()==0:
+                change = False
+            else:
+                # getting ready for next loop
+                df.strata = df.groupby(['strata','block']).ngroup()
+                df.block = 0
+
+        return outcome.join(df.strata).strata

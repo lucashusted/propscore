@@ -34,8 +34,11 @@ from propscore import PropensityScore
 output = PropensityScore('outcome', ['var1','var4','var5'], df, init_vars=['var2','var3'])
 
 # The propensity score values are given in the pandas Series:
-
 output.propscore
+
+# You can also calculate strata based on log-odds as follows (with minimum 20 observations):
+strata = PropensityScore.stratify(df.outcome,output.logodds,n_min=20,t_max=1)
+
 ```
 
 ## Output
@@ -51,6 +54,8 @@ output.propscore
 - `self.propscore`: Series. This is the propensity score as calculated by `self.model.predict()`. This may not match dimension of data due to dropped missing values, but index will align properly on nonmissing values.
 
 - `self.test_vars_ord2`: list. The full list of tested second order variables for reference.
+
+- `self.strata`: Series. The calculated strata (index starting at 0) that result from the propensity score, also following the same chapter. Missing values in outcome variable and propensity scores that fall outside of the allowable values (larger than max of control group and smaller than min of treatment group) are coded as NaN.
 
 ## References
 
