@@ -12,7 +12,7 @@ with io.open(os.path.join(dir, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='propscore',
-    version='0.0.3',
+    version='0.0.4',
     description='Program to Calculate Optimal Propensity Score',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -33,7 +33,7 @@ setup(
         "Operating System :: POSIX",
         "Programming Language :: Python",
         ],
-    install_requires=['statsmodels','pandas','scipy'],
+    install_requires=['statsmodels','pandas','scipy','numpy'],
     python_requires='>=3',
     packages=find_packages()
 )

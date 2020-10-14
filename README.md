@@ -1,6 +1,11 @@
 # Propensity Score Calculator
 
-Estimate the Propensity Score in Python following Imbens and Rubin (2015)
+Estimate the Propensity Score in Python following [Imbens and Rubin (2015a)](https://doi.org/10.1017/CBO9781139025751.014). Several by-products are calculated including:
+
+- Strata based on the estimated propensity score [Imbens and Rubin (2015a)](https://doi.org/10.1017/CBO9781139025751.014)
+
+- Suggested Maximum and Minimum values of the propensity score to maintain covariate balance through trimming [Imbens and Rubin (2015b)](https://doi.org/10.1017/CBO9781139025751.017)
+
 
 ## Installation
 Use `pip` to install:
@@ -9,7 +14,7 @@ pip install propscore
 ```
 
 ## Description
-This code is a work in progress, but allows one to estimate the propensity score (the probability of being in the treated group) following the general methodology laid out in [Imbens and Rubin (2015)](https://doi.org/10.1017/CBO9781139025751.014).
+This code is a work in progress, but allows one to estimate the propensity score (the probability of being in the treated group) following the general methodology laid out in [Imbens and Rubin (2015a)](https://doi.org/10.1017/CBO9781139025751.014).
 
 Support currently exists for first and second order terms. The method estimates in 3 steps. The first is done by the user, the remaining are done by the code.
 
@@ -36,8 +41,20 @@ output = PropensityScore('outcome', ['var1','var4','var5'], df, init_vars=['var2
 # The propensity score values are given in the pandas Series:
 output.propscore
 
-# You can also calculate strata based on log-odds as follows (with minimum 20 observations):
+
+# To see the different strata calculated, you can reference
+output.strata
+
+# However, you can also calculate strata based on log-odds as follows (with minimum 20 observations):
+# This may be useful if you want to use the package to calculate strata once you have propensity scores
 strata = PropensityScore.stratify(df.outcome,output.logodds,n_min=20,t_max=1)
+
+
+# Finally, the program automatically calculates a suitable min and max value of the propensity score:
+output.trim_range
+
+# This is also a static method (like stratify), so you can calculate the suitable min/max of the propensity score as:
+in_trim = PropensityScore.calc_trim(output.propscore)
 
 ```
 
@@ -57,6 +74,12 @@ strata = PropensityScore.stratify(df.outcome,output.logodds,n_min=20,t_max=1)
 
 - `self.strata`: Series. The calculated strata (index starting at 0) that result from the propensity score, also following the same chapter. Missing values in outcome variable and propensity scores that fall outside of the allowable values (larger than max of control group and smaller than min of treatment group) are coded as NaN.
 
+- `self.trim_range`: tuple. The result of calculating the optimal trim min and max propensity score values.
+
+- `self.in_trim`: Series (True/False). An array where True means that the propensity score falls within the trim min/max range.
+
 ## References
 
-Imbens, G., & Rubin, D. (2015). Estimating the Propensity Score. In Causal Inference for Statistics, Social, and Biomedical Sciences: An Introduction (pp. 281-308). Cambridge: Cambridge University Press. doi:10.1017/CBO9781139025751.014
+Imbens, G., & Rubin, D. (2015a). Estimating the Propensity Score. In Causal Inference for Statistics, Social, and Biomedical Sciences: An Introduction (pp. 281-308). Cambridge: Cambridge University Press. doi:10.1017/CBO9781139025751.014
+
+Imbens, G., & Rubin, D. (2015b). Trimming to Improve Balance in Covariate Distributions. In Causal Inference for Statistics, Social, and Biomedical Sciences: An Introduction (pp. 359-374). Cambridge: Cambridge University Press. doi:10.1017/CBO9781139025751.017

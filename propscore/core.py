@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from statsmodels.api import Logit
 from scipy.stats import ttest_ind as ttest
+from numpy import linspace
 from pandas import Series
 import warnings
 
@@ -49,8 +50,18 @@ class PropensityScore:
         This is the propensity score as calculated by self.model.fittedvalues.
         This may not match dimension of data due to dropped missing values,
         but index will align properly.
+    self.strata : Series
+        The calculated strata. Missing propensity scores and values outside of
+        min of treated group or max of control group are coded as NaN.
+    self.logodds : Series
+        The linearized propensity score. Will be the same dimension as propscore.
     self.test_vars_ord2: list
         The full list of tested second order variables for reference.
+    self.trim_range : tuple
+        The result of calculating the optimal trim min and max propensity score values.
+    self.in_trim : Series (True/False)
+        An array where True means that the propensity score falls within the 
+        trim min/max range.
     """
     def __init__(self, outcome, test_vars, df, init_vars=None, add_cons=True, disp=True,
                  cutoff_ord1 = 1, cutoff_ord2 = 2.71, t_strata = 1, n_min_strata='auto'):
@@ -77,7 +88,7 @@ class PropensityScore:
             n_min_strata = len(covs)+3
 
         if 'propscore' in covs + [outcome] or 'logodds' in covs + [outcome]:
-            raise valueError('You cannot have variables labeled "propscore" or "logodds"')
+            raise ValueError('You cannot have variables labeled "propscore" or "logodds"')
 
 
         data = df[[outcome]+covs].copy()
@@ -134,6 +145,9 @@ class PropensityScore:
 
         self.logodds = self.model.fittedvalues.rename('logodds')
         self.propscore = Series(self.model.predict(),index=self.logodds.index,name='propscore')
+        self.trim_range = self.calc_trim(self.propscore)
+        self.in_trim = (self.propscore.ge(self.trim_range[0]) & 
+                        self.propscore.le(self.trim_range[1])).rename('in_trim')
         self.strata = self.stratify(self.data[self.outcome],self.logodds,
                                     t_max=t_strata, n_min = n_min_strata)
 
@@ -263,3 +277,22 @@ class PropensityScore:
                 df.block = 0
 
         return outcome.join(df.strata).strata
+
+    # we will define a static method so that we can call this on any generic series
+    @staticmethod
+    def calc_trim(propscore):
+        y = 1/(propscore*(1-propscore))
+        
+        if y.max() <= (2/y.count())*(y.sum()):
+            return 0
+        
+        for gamma in linspace(y.max(),0,10000):
+            lhs_estimand = (gamma/y.count())*(y.le(gamma).sum())
+            rhs_estimand = (2/y.count())*((y.le(gamma)*y).sum())
+            if lhs_estimand < rhs_estimand:
+                break
+        
+        alpha = .5-((.25-(1/gamma))**.5)
+        
+        return alpha,1-alpha
+
