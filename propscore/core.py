@@ -60,7 +60,7 @@ class PropensityScore:
     self.trim_range : tuple
         The result of calculating the optimal trim min and max propensity score values.
     self.in_trim : Series (True/False)
-        An array where True means that the propensity score falls within the 
+        An array where True means that the propensity score falls within the
         trim min/max range.
     """
     def __init__(self, outcome, test_vars, df, init_vars=None, add_cons=True, disp=True,
@@ -146,7 +146,7 @@ class PropensityScore:
         self.logodds = self.model.fittedvalues.rename('logodds')
         self.propscore = Series(self.model.predict(),index=self.logodds.index,name='propscore')
         self.trim_range = self.calc_trim(self.propscore)
-        self.in_trim = (self.propscore.ge(self.trim_range[0]) & 
+        self.in_trim = (self.propscore.ge(self.trim_range[0]) &
                         self.propscore.le(self.trim_range[1])).rename('in_trim')
         self.strata = self.stratify(self.data[self.outcome],self.logodds,
                                     t_max=t_strata, n_min = n_min_strata)
@@ -282,17 +282,16 @@ class PropensityScore:
     @staticmethod
     def calc_trim(propscore):
         y = 1/(propscore*(1-propscore))
-        
+
         if y.max() <= (2/y.count())*(y.sum()):
-            return 0
-        
+            return 0,1
+
         for gamma in linspace(y.max(),0,10000):
             lhs_estimand = (gamma/y.count())*(y.le(gamma).sum())
             rhs_estimand = (2/y.count())*((y.le(gamma)*y).sum())
             if lhs_estimand < rhs_estimand:
                 break
-        
-        alpha = .5-((.25-(1/gamma))**.5)
-        
-        return alpha,1-alpha
 
+        alpha = .5-((.25-(1/gamma))**.5)
+
+        return alpha,1-alpha

@@ -12,7 +12,7 @@ with io.open(os.path.join(dir, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='propscore',
-    version='0.0.4',
+    version='0.0.5',
     description='Program to Calculate Optimal Propensity Score',
     long_description=long_description,
     long_description_content_type='text/markdown',
