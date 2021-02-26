@@ -47,8 +47,7 @@ output.strata
 
 # However, you can also calculate strata based on log-odds as follows (with minimum 20 observations):
 # This may be useful if you want to use the package to calculate strata once you have propensity scores
-strata = PropensityScore.stratify(df.outcome,output.logodds,n_min=20,t_max=1)
-
+strata = PropensityScore.stratify(df.outcome,output.logodds,n_min_strata=20)
 
 # Finally, the program automatically calculates a suitable min and max value of the propensity score:
 output.trim_range

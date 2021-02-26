@@ -28,10 +28,13 @@ class PropensityScore:
         The log gain cutoff for second order covariates. The default is 2.71.
     t_strata : Numeric, optional
         The cutoff for the t-statistic for the calculated strata. The default is 1.
-    n_min_strata : Int or 'auto'
-        The minimum number of units in each strata. The default is 'auto' in which case
-        the number is the number of covariates tested in the propensity score (just linear ones)
-        plus 3. If not auto, the input needs to be an integer.
+    n_min : {'n_min_strata':int1,'n_min_tc':int2} or 'auto'
+        The minimum number of units in each strata or treated/control individuals in strata.
+        The default is 'auto' in which case the number per strata is the number of covariates
+        tested in the propensity score (just linear ones) + 2 (or K+2)
+        while the minimum number of treated and control individuals per strata is 3.
+        If not auto, the input needs to be a dictionary that explicitly specifies:
+        {'n_min_strata':int1,'n_min_tc':int2}
 
     Raises
     ------
@@ -64,7 +67,7 @@ class PropensityScore:
         trim min/max range.
     """
     def __init__(self, outcome, test_vars, df, init_vars=None, add_cons=True, disp=True,
-                 cutoff_ord1 = 1, cutoff_ord2 = 2.71, t_strata = 1, n_min_strata='auto'):
+                 cutoff_ord1 = 1, cutoff_ord2 = 2.71, t_strata = 1, n_min='auto'):
 
         # double checking some inputs
         if type(outcome)!=str:
@@ -84,8 +87,17 @@ class PropensityScore:
         else:
             covs = test_vars
 
-        if n_min_strata == 'auto':
-            n_min_strata = len(covs)+3
+        if n_min == 'auto':
+            n_min_strata = len(covs)+2
+            n_min_tc = 3
+        else:
+            if type(n_min)!=dict:
+                raise ValueError('n_min must be "auto" or a dictionary')
+            elif ('n_min_tc' not in n_min) or ('n_min_strata' not in n_min):
+                raise ValueError('Must specify both n_min_strata (ex. K+2) '\
+                                    'and n_min_tc (ex. 3)')
+            n_min_strata = n_min['n_min_strata']
+            n_min_tc = n_min['n_min_tc']
 
         if 'propscore' in covs + [outcome] or 'logodds' in covs + [outcome]:
             raise ValueError('You cannot have variables labeled "propscore" or "logodds"')
@@ -149,7 +161,7 @@ class PropensityScore:
         self.in_trim = (self.propscore.ge(self.trim_range[0]) &
                         self.propscore.le(self.trim_range[1])).rename('in_trim')
         self.strata = self.stratify(self.data[self.outcome],self.logodds,
-                                    t_max=t_strata, n_min = n_min_strata)
+                                    t_max=t_strata, n_min_strata = n_min_strata, n_min_tc=n_min_tc)
 
         if disp:
             print(self.model.summary())
@@ -209,22 +221,26 @@ class PropensityScore:
 
     # we will define a static method so that we can call this on any generic series
     @staticmethod
-    def stratify(outcome, logodds, n_min, t_max = 1):
+    def stratify(outcome, logodds, n_min_strata, n_min_tc = 3, t_max = 1):
         """
     Calculate strata from a given outcome variable and log-odds. Specify the cutoff
     for the t-statistic in t_max, or the minimum number of observations for
-    each strata in n_min.
+    each strata in n_min_strata and the number of treated or control observations per
+    strata in n_min_tc.
     Parameters
     ----------
     outcome : Series
         Binary variable denoting treatment outcome
     logodds : Series
         The calculated log-odds for that (transformation of propensity score).
+    n_min_strata : Int
+        The minimum number of observations per strata.
+    n_min_tc : Int
+        The minimum number of treated or control observations per strata.
+        Default is 3.
     t_max : Float
         The maximum t-statistic value acceptable in a strata before splitting.
         Default is 1.
-    n_min : Int
-        The minimum number of observations per strata.
 
     Returns
     -------
@@ -266,7 +282,9 @@ class PropensityScore:
                 n = sub.groupby(['medgrp','outcome'])['logodds'].count()
 
                 # make new blocks
-                if t_test>t_max and min(n)>2 and min(n.groupby('medgrp').sum())>n_min:
+                if (t_test>t_max and
+                    min(n)>=n_min_tc and
+                    min(n.groupby('medgrp').sum())>=n_min_strata):
                     df.loc[df.strata.eq(ii),'block'] = df.loc[df.strata.eq(ii),'medgrp']
 
             if df.block.sum()==0:
